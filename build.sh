@@ -11,10 +11,6 @@ else
     for arch in amd64 arm64
     do
         env GOOS=linux GOARCH=${arch} xcaddy build latest \
-        --with github.com/caddy-dns/cloudflare \
-        --with github.com/mholt/caddy-l4 \
-        --with github.com/mholt/caddy-webdav \
-        --with github.com/lindenlab/caddy-s3-proxy \
         --with github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@naive \
         --output caddy_${arch}
         git add caddy_${arch}
