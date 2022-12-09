@@ -28,6 +28,4 @@ jobs:
         platforms: linux/amd64,linux/arm64
         push: true
         tags: |
-          kwaabot/caddy:latest
-          quay.io/kwaabot/caddy:latest
-          ghcr.io/kwaa/caddy:latest
+          shell20021020/caddyNaive:latest
