@@ -28,4 +28,4 @@ jobs:
         platforms: linux/amd64,linux/arm64
         push: true
         tags: |
-          shell20021020/caddyNaive:latest
+          shell20021020/caddynaive:latest
