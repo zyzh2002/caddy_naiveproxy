@@ -1,4 +1,4 @@
-# kwaa/caddy
+# zyzh2002/caddy_naiveproxy
 
 ![build](https://github.com/zyzh2002/caddy_naiveproxy/actions/workflows/build.yml/badge.svg)
 ![docker](https://github.com/zyzh2002/caddy_naiveproxy/actions/workflows/docker.yml/badge.svg)
