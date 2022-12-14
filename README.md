@@ -7,6 +7,7 @@ caddy, build with:
 
 - [klzgrad/forwardproxy](https://github.com/klzgrad/forwardproxy)
 - [caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare)
+- [caddy-dns/alidns](https://github.com/caddy-dns/alidns)
 
 ## Download
 
