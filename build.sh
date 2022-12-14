@@ -13,6 +13,7 @@ else
         env GOOS=linux GOARCH=${arch} xcaddy build latest \
         --with github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@naive \
         --with github.com/caddy-dns/cloudflare \
+        --with github.com/caddy-dns/alidns \
         --output caddy_${arch}
         git add caddy_${arch}
     done
