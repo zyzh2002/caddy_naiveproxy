@@ -1,0 +1,42 @@
+name: verify Caddy build
+
+on:
+  pull_request:
+    paths:
+      - build.sh
+      - .github/workflows/build.yml
+      - .github/workflows/ci.yml
+      - .github/workflows/docker.yml
+      - Dockerfile
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caddy-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      - name: Cache Go dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('build.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Build amd64 and arm64 and verify module registration
+        run: bash build.sh

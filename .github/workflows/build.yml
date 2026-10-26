@@ -2,14 +2,10 @@ name: build
 
 on:
   schedule:
-    - cron: '30 0 * * FRI'
+    - cron: '17 1 * * FRI'
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - build.sh
-      - .github/workflows/build.yml
-  pull_request:
     paths:
       - build.sh
       - .github/workflows/build.yml
@@ -29,8 +25,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # PRs use a read-only token; publishing keeps the PAT so Docker push events fire.
-          token: ${{ github.event_name == 'pull_request' && github.token || secrets.PERSONAL_ACCESS_TOKEN }}
+          # PAT commits must trigger the separate Docker publish workflow.
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -48,7 +44,7 @@ jobs:
       - name: Build and verify
         run: bash build.sh
       - name: Commit and push updated binaries
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main'
         run: |
           git config user.name 'GitHub Action'
           git config user.email 'action@github.com'
