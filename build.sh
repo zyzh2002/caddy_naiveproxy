@@ -8,7 +8,6 @@ go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
 for arch in amd64 arm64; do
     echo "Building Caddy for linux/${arch}"
     CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" xcaddy build latest \
-        --with github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@naive \
         --with github.com/caddy-dns/cloudflare \
         --with github.com/caddy-dns/alidns \
         --with github.com/mholt/caddy-l4 \
