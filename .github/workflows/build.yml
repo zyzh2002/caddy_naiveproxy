@@ -1,8 +1,10 @@
 name: build
 
 on:
+  # Poll upstream releases without rebuilding when the published version is current.
+  # Use an off-hour minute to avoid GitHub's peak schedule load.
   schedule:
-    - cron: '17 1 * * FRI'
+    - cron: '37 */6 * * *'
   workflow_dispatch:
   push:
     branches: [main]
@@ -14,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: caddy-build-${{ github.ref }}
+  group: caddy-build-main
   cancel-in-progress: false
 
 jobs:
@@ -25,14 +27,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # PAT commits must trigger the separate Docker publish workflow.
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          # PAT pushes must trigger the separate Docker publishing workflow.
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN || github.token }}
+      - name: Detect latest upstream Caddy release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # A config push or manual run should always rebuild.
+          FORCE_BUILD: ${{ github.event_name != 'schedule' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(gh api repos/caddyserver/caddy/releases/latest --jq '.tag_name')"
+          if [[ ! "$latest" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Unexpected upstream release tag: $latest" >&2
+            exit 1
+          fi
+
+          current='unknown'
+          has_layer4='false'
+          if [[ -x caddy_amd64 ]]; then
+            if detected="$(./caddy_amd64 version | awk '{print $1}')"; then
+              current="$detected"
+            fi
+            if ./caddy_amd64 list-modules | grep -Fxq 'layer4'; then
+              has_layer4='true'
+            fi
+          fi
+
+          needs_build='false'
+          if [[ "$FORCE_BUILD" == 'true' || "$latest" != "$current" || "$has_layer4" != 'true' ]]; then
+            needs_build='true'
+          fi
+
+          echo "Upstream release: $latest; published binary: $current; layer4: $has_layer4; build: $needs_build"
+          echo "version=$latest" >> "$GITHUB_OUTPUT"
+          echo "needs_build=$needs_build" >> "$GITHUB_OUTPUT"
       - name: Set up Go
+        if: steps.upstream.outputs.needs_build == 'true'
         uses: actions/setup-go@v7
         with:
-          go-version: 'stable'
+          go-version: stable
           cache: false
       - name: Cache Go dependencies
+        if: steps.upstream.outputs.needs_build == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -42,16 +80,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Build and verify
+        if: steps.upstream.outputs.needs_build == 'true'
+        env:
+          CADDY_VERSION: ${{ steps.upstream.outputs.version }}
         run: bash build.sh
       - name: Commit and push updated binaries
-        if: github.ref == 'refs/heads/main'
+        if: steps.upstream.outputs.needs_build == 'true'
+        env:
+          PUBLISH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        shell: bash
         run: |
+          set -euo pipefail
+          if [[ -z "$PUBLISH_TOKEN" ]]; then
+            echo 'Missing PERSONAL_ACCESS_TOKEN: required to trigger Docker publishing from a binary push' >&2
+            exit 1
+          fi
           git config user.name 'GitHub Action'
           git config user.email 'action@github.com'
           git add caddy_amd64 caddy_arm64
           if git diff --cached --quiet; then
             echo 'No binary changes to commit'
           else
-            git commit -m 'build: refresh Caddy binaries'
+            git commit -m "build: update Caddy to ${{ steps.upstream.outputs.version }}"
             git push origin HEAD:main
           fi
