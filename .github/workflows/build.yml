@@ -27,8 +27,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # PAT pushes must trigger the separate Docker publishing workflow.
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN || github.token }}
+          # Checkout should always use the workflow's default read token.
+          # Do not persist credentials; binary publishing uses a separate PAT.
+          persist-credentials: false
       - name: Detect latest upstream Caddy release
         id: upstream
         env:
@@ -102,5 +103,17 @@ jobs:
             echo 'No binary changes to commit'
           else
             git commit -m "build: update Caddy to ${{ steps.upstream.outputs.version }}"
-            git push origin HEAD:main
+            # Supply the PAT only for the push, not checkout, without writing
+            # the secret into the remote URL or Git configuration.
+            askpass_file="$(mktemp)"
+            trap 'rm -f "$askpass_file"' EXIT
+            cat > "$askpass_file" <<'ASKPASS'
+#!/usr/bin/env sh
+case "$1" in
+  *Username*) printf '%s\\n' 'x-access-token' ;;
+  *Password*) printf '%s\\n' "$PUBLISH_TOKEN" ;;
+esac
+ASKPASS
+            chmod 700 "$askpass_file"
+            GIT_ASKPASS="$askpass_file" GIT_TERMINAL_PROMPT=0 git push origin HEAD:main
           fi
