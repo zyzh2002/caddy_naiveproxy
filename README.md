@@ -43,24 +43,38 @@ WantedBy=multi-user.target
 
 ## Building and publishing
 
-Run `bash build.sh` with a current Go toolchain to produce `caddy_amd64` and
-`caddy_arm64`. The script includes `caddy-l4` in both architectures and checks
-for the `layer4` app in the native (amd64) executable. Test a downloaded build
-with `caddy list-modules | grep '^layer4'`.
+Run `bash build.sh` with a current Go toolchain to build `caddy_amd64`
+and `caddy_arm64`. The build includes `caddy-l4` in both architectures and
+verifies that the `layer4` app is registered in the native amd64 executable.
+Set `CADDY_VERSION=vX.Y.Z` to build a specific upstream Caddy release tag.
 
-The `verify Caddy build` workflow checks pull requests that change the build
-configuration. It rebuilds every Friday, on relevant pushes to `main`, and when
-manually dispatched. The workflow commits changed binaries to `main`; that
-commit triggers the Docker workflow to publish `shell20021020/caddynaive:latest`
-for amd64 and arm64.
+The workflows have separate responsibilities:
 
-For publishing, configure repository secrets `PERSONAL_ACCESS_TOKEN`
+- `ci.yml`: builds both architectures on pull requests touching build and CI
+  configuration (no publication).
+- `build.yml`: checks [Caddy upstream releases](https://github.com/caddyserver/caddy/releases)
+  **every six hours** (UTC minute 37), builds only if the published binary
+  version differs from the upstream latest stable release **or** is missing
+  `layer4`, and commits updated binaries to `main`. Pushes changing
+  `build.sh` or `build.yml`, and manual workflow runs, force a rebuild.
+  Builds use the exact release tag returned by the GitHub Releases API.
+- `docker.yml`: publishes `shell20021020/caddynaive:latest` for
+  `linux/amd64` and `linux/arm64` after the binary changes reach `main`
+  (or when manually triggered).
+
+This is **polling**, not an instant cross-repository release webhook.
+GitHub's `release` event only observes releases in the repository where the
+workflow runs. GitHub may delay scheduled jobs, and automatically disables
+scheduled workflows in public repositories after **60 days of inactivity**.
+If that happens, re-enable the `build` workflow in the repository Actions tab.
+
+The publishing chain requires repository secrets `PERSONAL_ACCESS_TOKEN`
 (with permission to push to the protected `main` branch),
-`DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN`. A PAT is deliberately used for
-the binary commit because pushes performed with `GITHUB_TOKEN` do **not**
-trigger downstream `push` workflows. The workflows never publish on a PR.
+`DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN`. A PAT is used for the binary
+commit because GitHub's `GITHUB_TOKEN` commits do **not** normally trigger
+downstream `push` workflows. Pull requests never publish images.
 
-Note: the repository and existing Docker image names remain unchanged for
-backward compatibility. `caddy-l4` is an experimental third-party plugin, and its interfaces
-may change. The Docker image and repository binaries are not updated by
-this source-only change until the Actions build succeeds on `main`.
+Repository and image names remain unchanged for compatibility. This
+repository no longer includes NaiveProxy/forwardproxy. `caddy-l4` is an
+experimental third-party module with APIs that may change.
+
