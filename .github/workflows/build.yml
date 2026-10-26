@@ -1,20 +1,61 @@
 name: build
+
 on:
   schedule:
-    - cron: "30 0 * * FRI"
+    - cron: '30 0 * * FRI'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - build.sh
+      - .github/workflows/build.yml
+  pull_request:
+    paths:
+      - build.sh
+      - .github/workflows/build.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caddy-build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
-    - name: Setup Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: '1.19.2'
-    - name: Checkout
-      uses: actions/checkout@v3
-      with:
-        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-    - name: Build & Push
-      run: |
-        bash build.sh
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # PRs use a read-only token; publishing keeps the PAT so Docker push events fire.
+          token: ${{ github.event_name == 'pull_request' && github.token || secrets.PERSONAL_ACCESS_TOKEN }}
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: 'stable'
+          cache: false
+      - name: Cache Go dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('build.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Build and verify
+        run: bash build.sh
+      - name: Commit and push updated binaries
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          git config user.name 'GitHub Action'
+          git config user.email 'action@github.com'
+          git add caddy_amd64 caddy_arm64
+          if git diff --cached --quiet; then
+            echo 'No binary changes to commit'
+          else
+            git commit -m 'build: refresh Caddy binaries'
+            git push origin HEAD:main
+          fi
