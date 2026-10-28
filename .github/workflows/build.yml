@@ -13,7 +13,8 @@ on:
       - .github/workflows/build.yml
 
 permissions:
-  contents: read
+  contents: write
+  actions: write
 
 concurrency:
   group: caddy-build-${{ github.ref }}-v2
@@ -27,9 +28,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Checkout should always use the workflow's default read token.
-          # Do not persist credentials; binary publishing uses a separate PAT.
-          persist-credentials: false
+          # Use the ephemeral GITHUB_TOKEN for both checkout and git push.
+          persist-credentials: true
       - name: Detect latest upstream Caddy release
         id: upstream
         env:
@@ -88,14 +88,10 @@ jobs:
       - name: Commit and push updated binaries
         if: steps.upstream.outputs.needs_build == 'true'
         env:
-          PUBLISH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$PUBLISH_TOKEN" ]]; then
-            echo 'Missing PERSONAL_ACCESS_TOKEN: required to trigger Docker publishing from a binary push' >&2
-            exit 1
-          fi
           git config user.name 'GitHub Action'
           git config user.email 'action@github.com'
           git add caddy_amd64 caddy_arm64
@@ -103,7 +99,8 @@ jobs:
             echo 'No binary changes to commit'
           else
             git commit -m "build: update Caddy to ${{ steps.upstream.outputs.version }}"
-            # Supply PAT through a one-shot credential helper so it is never
-            # persisted in Git config or embedded in the remote URL.
-            GIT_TERMINAL_PROMPT=0 git -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$PUBLISH_TOKEN"; }; f' push origin HEAD:main
+            # GITHUB_TOKEN pushes do not trigger downstream push workflows.
+            git push origin HEAD:main
+            # workflow_dispatch *does* trigger even when using GITHUB_TOKEN.
+            gh workflow run docker.yml --ref main
           fi
