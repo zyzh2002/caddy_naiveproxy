@@ -68,11 +68,14 @@ workflow runs. GitHub may delay scheduled jobs, and automatically disables
 scheduled workflows in public repositories after **60 days of inactivity**.
 If that happens, re-enable the `build` workflow in the repository Actions tab.
 
-The publishing chain requires repository secrets `PERSONAL_ACCESS_TOKEN`
-(with permission to push to the protected `main` branch),
-`DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN`. A PAT is used for the binary
-commit because GitHub's `GITHUB_TOKEN` commits do **not** normally trigger
-downstream `push` workflows. Pull requests never publish images.
+Build and binary-publishing use the short-lived `GITHUB_TOKEN` with
+`contents: write` and `actions: write` permissions. No personal access token
+is required. After a successful binary commit, `build.yml` dispatches
+`docker.yml` explicitly because pushes made with `GITHUB_TOKEN` do not
+automatically trigger other `push` workflows. Docker Hub publication still
+requires the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets.
+If the protected `main` branch rejects GitHub Actions pushes, adjust the
+branch permissions or switch to a release-asset-based distribution workflow.
 
 Repository and image names remain unchanged for compatibility. This
 repository no longer includes NaiveProxy/forwardproxy. `caddy-l4` is an
